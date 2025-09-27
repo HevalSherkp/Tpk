@@ -1,0 +1,45 @@
+name: make-typetree-tpk
+on:
+  workflow_dispatch:
+    inputs:
+      unity:
+        description: "Unity version"
+        required: true
+        default: "2022.3.28f1"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Tpk
+        uses: actions/checkout@v4
+        with:
+          repository: AssetRipper/Tpk
+
+      - name: Checkout TypeTreeDumps
+        uses: actions/checkout@v4
+        with:
+          repository: AssetRipper/TypeTreeDumps
+          path: TypeTreeDumps
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Publish console
+        run: dotnet publish .\Tpk.ConsoleApp\Tpk.ConsoleApp.csproj -c Release -o .\out
+
+      - name: Pack non-brotli TPK
+        run: >
+          dotnet .\out\AssetRipper.Tpk.ConsoleApp.dll pack
+          --repo ".\TypeTreeDumps"
+          --version "${{ github.event.inputs.unity }}"
+          --no-brotli
+          --output ".\classdata_${{ github.event.inputs.unity }}_nobrotli.tpk"
+
+      - name: Upload TPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: classdata-${{ github.event.inputs.unity }}-nobrotli
+          path: .\classdata_${{ github.event.inputs.unity }}_nobrotli.tpk
