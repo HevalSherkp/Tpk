@@ -28,18 +28,38 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Publish console
+        shell: pwsh
         run: dotnet publish .\Tpk.ConsoleApp\Tpk.ConsoleApp.csproj -c Release -o .\out
 
-      - name: Pack non-brotli TPK
+      # Try non-brotli first (what UABEA wants), then fall back to default if flag unsupported
+      - name: Pack TPK (non-brotli, preferred)
+        shell: pwsh
+        continue-on-error: true
         run: >
           dotnet .\out\AssetRipper.Tpk.ConsoleApp.dll pack
-          --repo ".\TypeTreeDumps"
+          --repo "$PWD\TypeTreeDumps"
           --version "${{ github.event.inputs.unity }}"
           --no-brotli
-          --output ".\classdata_${{ github.event.inputs.unity }}_nobrotli.tpk"
+          --output "$PWD\classdata_${{ github.event.inputs.unity }}_nobrotli.tpk"
 
-      - name: Upload TPK
+      - name: Pack TPK (fallback if needed)
+        if: ${{ !hashFiles('classdata_*_nobrotli.tpk') }}
+        shell: pwsh
+        run: >
+          dotnet .\out\AssetRipper.Tpk.ConsoleApp.dll pack
+          --repo "$PWD\TypeTreeDumps"
+          --version "${{ github.event.inputs.unity }}"
+          --output "$PWD\classdata_${{ github.event.inputs.unity }}.tpk"
+
+      - name: List outputs
+        shell: pwsh
+        run: |
+          Write-Host "TPKs found under $PWD:"
+          Get-ChildItem -Recurse -Filter *.tpk | Format-Table FullName,Length
+
+      - name: Upload any TPKs
         uses: actions/upload-artifact@v4
         with:
-          name: classdata-${{ github.event.inputs.unity }}-nobrotli
-          path: .\classdata_${{ github.event.inputs.unity }}_nobrotli.tpk
+          name: classdata-${{ github.event.inputs.unity }}
+          path: |
+            **\*.tpk
